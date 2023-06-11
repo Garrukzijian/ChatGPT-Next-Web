@@ -14,7 +14,25 @@ import { prettyObject } from "../utils/format";
 import { message } from "antd";
 
 async function getToken(text) {
-  const result = await fetch("/token", {
+  const apikey = "8CTUXWGrWkerGQwIodfeTOKn";
+  const secretKey = "5I4LuDh02rbSv3dObLjcNuazuDG5QEsZ";
+
+  const AssentToken = await fetch(
+    `http://localhost:4000/baiduapi/token?grant_type=client_credentials&client_id=${apikey}&client_secret=${secretKey}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+    },
+  )
+    .then((response) => response.json())
+    .then((data) => {
+      return data.access_token;
+    });
+
+  const result = await fetch(`'/token'+'${AssentToken}`, {
     body: new URLSearchParams({
       text: text,
     }),

@@ -31,7 +31,7 @@ if (mode !== "export") {
       },
       {
         source : "/token",
-        destination:"https://aip.baidubce.com/rest/2.0/solution/v1/text_censor/v2/user_defined?access_token=24.1214e68cbdc518f9ec3548a04cd45009.2592000.1689015849.282335-34593633"
+        destination:"https://aip.baidubce.com/rest/2.0/solution/v1/text_censor/v2/user_defined?access_token="
       }
     ];
 
