@@ -11,6 +11,45 @@ import { StoreKey } from "../constant";
 import { api, RequestMessage } from "../client/api";
 import { ChatControllerPool } from "../client/controller";
 import { prettyObject } from "../utils/format";
+import { message } from "antd";
+
+async function getToken(text) {
+  const result = await fetch("/token", {
+    body: new URLSearchParams({
+      text: text,
+    }),
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    method: "POST",
+  })
+    .then((response) => response.json())
+    .then((data) => {
+      // 获取所有不合规的词汇
+      const words = data.data.reduce((acc, item) => {
+        if (item.conclusionType === 2) {
+          item.hits.forEach((hit) => {
+            acc.push(...hit.words);
+          });
+        }
+        return acc;
+      }, []);
+      let newText = text;
+      words.forEach((word) => {
+        const regex = new RegExp(word, "g");
+        newText = newText.replace(regex, "***");
+      });
+      return {
+        conclusionType: data.data[0].conclusionType,
+        newText: newText,
+      };
+    })
+    .catch((error) => {
+      console.error(error);
+    });
+  return result; // 显式地返回结果
+}
 
 export type ChatMessage = RequestMessage & {
   date: string;
@@ -233,14 +272,24 @@ export const useChatStore = create<ChatStore>()(
       },
 
       async onUserInput(content) {
+        let token;
+
         const session = get().currentSession();
         const modelConfig = session.mask.modelConfig;
 
+        token = await getToken(content);
+        console.log(token, "token");
+
         const userMessage: ChatMessage = createMessage({
           role: "user",
-          content,
+          content: content,
         });
 
+        let isMakeRequest = true;
+        if (token) {
+          userMessage.content = token.newText;
+          isMakeRequest = false;
+        }
         const botMessage: ChatMessage = createMessage({
           role: "assistant",
           streaming: true,
@@ -267,6 +316,7 @@ export const useChatStore = create<ChatStore>()(
         const sendMessages = systemMessages.concat(
           recentMessages.concat(userMessage),
         );
+        console.log(sendMessages, "sendMessages");
         const sessionIndex = get().currentSessionIndex;
         const messageIndex = get().currentSession().messages.length + 1;
 
@@ -278,59 +328,63 @@ export const useChatStore = create<ChatStore>()(
 
         // make request
         console.log("[User Input] ", sendMessages);
-        api.llm.chat({
-          messages: sendMessages,
-          config: { ...modelConfig, stream: true },
-          onUpdate(message) {
-            botMessage.streaming = true;
-            if (message) {
-              botMessage.content = message;
-            }
-            set(() => ({}));
-          },
-          onFinish(message) {
-            botMessage.streaming = false;
-            if (message) {
-              botMessage.content = message;
-              get().onNewMessage(botMessage);
-            }
-            ChatControllerPool.remove(
-              sessionIndex,
-              botMessage.id ?? messageIndex,
-            );
-            set(() => ({}));
-          },
-          onError(error) {
-            const isAborted = error.message.includes("aborted");
-            botMessage.content =
-              "\n\n" +
-              prettyObject({
-                error: true,
-                message: error.message,
-              });
-            botMessage.streaming = false;
-            userMessage.isError = !isAborted;
-            botMessage.isError = !isAborted;
+        if (isMakeRequest) {
+          api.llm.chat({
+            messages: sendMessages,
+            config: { ...modelConfig, stream: true },
+            onUpdate(message) {
+              botMessage.streaming = true;
+              if (message) {
+                botMessage.content = message;
+              }
+              set(() => ({}));
+            },
+            onFinish(message) {
+              botMessage.streaming = false;
+              if (message) {
+                botMessage.content = message;
+                get().onNewMessage(botMessage);
+              }
+              ChatControllerPool.remove(
+                sessionIndex,
+                botMessage.id ?? messageIndex,
+              );
+              set(() => ({}));
+            },
+            onError(error) {
+              const isAborted = error.message.includes("aborted");
+              botMessage.content =
+                "\n\n" +
+                prettyObject({
+                  error: true,
+                  message: error.message,
+                });
+              botMessage.streaming = false;
+              userMessage.isError = !isAborted;
+              botMessage.isError = !isAborted;
 
-            set(() => ({}));
-            ChatControllerPool.remove(
-              sessionIndex,
-              botMessage.id ?? messageIndex,
-            );
+              set(() => ({}));
+              ChatControllerPool.remove(
+                sessionIndex,
+                botMessage.id ?? messageIndex,
+              );
 
-            console.error("[Chat] failed ", error);
-          },
-          onController(controller) {
-            // collect controller for stop/retry
-            ChatControllerPool.addController(
-              sessionIndex,
-              botMessage.id ?? messageIndex,
-              controller,
-            );
-          },
-        });
+              console.error("[Chat] failed ", error);
+            },
+            onController(controller) {
+              // collect controller for stop/retry
+              ChatControllerPool.addController(
+                sessionIndex,
+                botMessage.id ?? messageIndex,
+                controller,
+              );
+            },
+          });
+        } else {
+          console.log("违禁词");
+          message.error("禁止使用违禁词!");
+        }
       },
-
       getMemoryPrompt() {
         const session = get().currentSession();
 
