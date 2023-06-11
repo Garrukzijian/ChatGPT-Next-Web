@@ -30,8 +30,8 @@ if (mode !== "export") {
         destination: "https://sharegpt.com/api/conversations",
       },
       {
-        source : "/token",
-        destination:"https://aip.baidubce.com/rest/2.0/solution/v1/text_censor/v2/user_defined?access_token="
+        source : "/token:path",
+        destination:"https://aip.baidubce.com/rest/2.0/solution/v1/text_censor/v2/user_defined?access_token=:path"
       }
     ];
 

@@ -32,7 +32,8 @@ async function getToken(text) {
       return data.access_token;
     });
 
-  const result = await fetch(`'/token'+'${AssentToken}`, {
+  // const testToken ='24.e014a0085481bf9bcd8a485ccee23149.2592000.1689055290.282335-34593633'
+  const result = await fetch(`/token${AssentToken}`, {
     body: new URLSearchParams({
       text: text,
     }),
